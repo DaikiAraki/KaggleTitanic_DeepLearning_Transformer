@@ -97,7 +97,7 @@ def training(total_iteration_number):
 
     # 汎化性能評価が最もよかった時のモデルをbest modelとする
     loss_verify_min = None
-    modelBest = None
+    modelHandler_best = None
 
     time_start = dt.now()
 
@@ -121,7 +121,7 @@ def training(total_iteration_number):
 
         # 汎化誤差が最小であればモデルをキープ
         if ((loss_verify < loss_verify_min) if (loss_verify_min is not None) else True) and (iteration > 1000):
-            modelBest = copy.deepcopy(modelHandler.model)
+            modelHandler_best = copy.deepcopy(modelHandler)
             loss_verify_min = loss_verify
 
         # 経過時間表示
@@ -136,7 +136,9 @@ def training(total_iteration_number):
     print(dt.now().strftime("%Y/%m/%d %H:%M:%S") + " " + "the training has finished")
 
     # best modelの保存
-    modelBest.export_variables(path_obj_dir=cfg.path_model_data)
+    modelHandler_best.model.export_variables(path_obj_dir=cfg.path_model_data)
+    modelHandler_best.model.Optimizer.export_slots()
+    modelHandler_best.model.Optimizer.export_iterations()
     print(dt.now().strftime("%Y/%m/%d %H:%M:%S") + " " + "the best model has exported to " +
           "'" + str(cfg.path_model_data) + "'")
 
@@ -192,7 +194,7 @@ def inference():
 
 
 if __name__ == "__main__":
-    training(total_iteration_number=50000)
+    training(total_iteration_number=40000)
     inference()
 
 
