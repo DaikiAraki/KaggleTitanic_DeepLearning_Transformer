@@ -30,7 +30,6 @@ class ModelCore:
     def __init__(self, name):
         self.name = name
         self._objects = {}  # dict of model Objects and Variables that attributes this object
-        self._variables = {}  # hierarchical dictionary of all (containing sub parts) variables
         self._trainable_variables = []  # flat list of all trainable variables (containing those in subparts)
 
     def _register_objects(self, obj_dict):
@@ -42,12 +41,10 @@ class ModelCore:
             # object
             if any([ModelCore == i for i in type(v).__mro__]):
                 self._objects.update({k: v})
-                self._variables.update({k: v.get_variables()})
                 self._trainable_variables.append(v.get_trainable_variables())
             # variables
             else:
                 self._objects.update({k: v})
-                self._variables.update({k: v})
                 if (v is not None) and v.trainable:
                     self._trainable_variables.append(v)
         self._trainable_variables = flatten(self._trainable_variables)
