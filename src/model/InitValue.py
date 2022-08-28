@@ -28,7 +28,7 @@ class InitValue:
         """
         :param path: pathlib.Path, path of the top folder of a saved model(saved by this system) [default: "\\model"]
         """
-        assert isinstance(path, Path)
+        assert isinstance(path, Path) or path is None
         self.path_root = path
         self.initValues = {}
 
