@@ -65,8 +65,6 @@ class ModelHandler:
         return estimations  # [batch], np
 
 
-    @tf.function(input_signature=(tf.TensorSpec(shape=[None, None], dtype=tf.float32),
-                                  tf.TensorSpec(shape=[None, None], dtype=tf.float32),))
     def run_training(self, X, Yt):
         """
         学習モードで動作させる。
@@ -80,8 +78,6 @@ class ModelHandler:
         return objective  # []
 
 
-    @tf.function(input_signature=(tf.TensorSpec(shape=[None, None], dtype=tf.float32),
-                                  tf.TensorSpec(shape=[None, None], dtype=tf.float32),))
     def run_verification(self, X, Yt):
         """
         評価モードで動作させる。
