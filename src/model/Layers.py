@@ -26,16 +26,15 @@ weightやbiasなどのVariablesを有し、call()実行によって順方向出�
 class SelfAttentionLayer(ModelLayer):
     # shape of x = [batch, inWidth, inChannel]
     # shape of y = [batch, outWidth, outChannel]
-    def __init__(self, headNum, nodeQ, nodeKV, nodeO, inWidth, inChl,
+    def __init__(self, headNum, qkvChl, outChl, inWidth, inChl,
                  initValues=None, name="selfAttention"):
         """
         self-attention layer（multi-head）
         :param headNum: int, number of attention-heads
-        :param nodeQ: int, number of output nodes of query projection
-        :param nodeKV: int, number of output nodes of key and value projection
-        :param nodeO: int, number of output nodes of attention layer
-        :param inWidth: int, width of input
-        :param inChl: int, channel number of input
+        :param qkvChl: channel number of query and key and value
+        :param outChl: output channel
+        :param inWidth: width of input
+        :param inChl: channel number of input
         :param initValues: dict or None,
                            key=nameにこのブロックのinitValuesを持つ,
                            このブロックのinitValuesは、variableのnameをkeyにしてvariable初期化用の行列（ndarray）を持つ
@@ -54,19 +53,19 @@ class SelfAttentionLayer(ModelLayer):
         init_wO = initVal[n_wO] if (initVal is not None) and (n_wO in initVal.keys()) else None
         init_bO = initVal[n_bO] if (initVal is not None) and (n_bO in initVal.keys()) else None
         self.headNum = headNum
-        self.nodeQ = nodeQ
-        self.nodeKV = nodeKV
-        self.nodeO = nodeO
-        self.outWidth = nodeO
-        self.outChl = inChl
+        self.qkvChl = qkvChl
+        self.inWidth = inWidth
+        self.inChl = inChl
+        self.outWidth = inWidth
+        self.outChl = outChl
 
         with tf.name_scope(self.name):
-            self.dim_q = tf.convert_to_tensor(nodeQ, dtype=tf.float32, name="dim_q")
-            self.wQ = weight_variable([headNum, inWidth, nodeQ], initMatrix=init_wQ, name=n_wQ)
-            self.wK = weight_variable([headNum, inWidth, nodeKV], initMatrix=init_wK, name=n_wK)
-            self.wV = weight_variable([headNum, inWidth, nodeKV], initMatrix=init_wV, name=n_wV)
-            self.wO = weight_variable([headNum * nodeQ, nodeO], initMatrix=init_wO, name=n_wO)
-            self.bO = bias_variable([1, nodeO, 1], initMatrix=init_bO, name=n_bO)
+            self.root_dim_qkv = tf.convert_to_tensor(math.sqrt(qkvChl), dtype=tf.float32, name="dim_qkv")
+            self.wQ = weight_variable([headNum, inChl, qkvChl], initMatrix=init_wQ, name=n_wQ)
+            self.wK = weight_variable([headNum, inChl, qkvChl], initMatrix=init_wK, name=n_wK)
+            self.wV = weight_variable([headNum, inChl, qkvChl], initMatrix=init_wV, name=n_wV)
+            self.wO = weight_variable([headNum * qkvChl, outChl], initMatrix=init_wO, name=n_wO)
+            self.bO = bias_variable([1, 1, outChl], initMatrix=init_bO, name=n_bO)
             self._register_objects({n_wQ: self.wQ,
                                     n_wK: self.wK,
                                     n_wV: self.wV,
@@ -86,21 +85,62 @@ class SelfAttentionLayer(ModelLayer):
         :return y: [batch, outputWidth, outputChannel]]
         """
         with tf.name_scope(self.name + "/proc"):
-            Q = tf.transpose(a=tf.tensordot(a=x, b=self.wQ, axes=[1, 1]), perm=[0, 2, 3, 1])  # [b,head,wQ,c]
-            K = tf.transpose(a=tf.tensordot(a=x, b=self.wK, axes=[1, 1]), perm=[0, 2, 3, 1])  # [b,head,wKV,c]
-            V = tf.transpose(a=tf.tensordot(a=x, b=self.wV, axes=[1, 1]), perm=[0, 2, 3, 1])  # [b,head,wKV,c]
-            QK = tf.reduce_sum(tf.multiply(x=tf.expand_dims(Q, axis=3),  # [b,head,wQ,1,c]
-                                           y=tf.expand_dims(K, axis=2)),  # [b,head,1,wKV,c]
-                               axis=-1, keepdims=False)  # [b,head,wQ,wKV]
-            QK_div_dq = tf.divide(x=QK, y=self.dim_q)  # [b,head,wQ,wKV]
-            softmax_QK = tf.nn.softmax(logits=QK_div_dq, axis=-1)  # [b,head,wQ,wKV]
-            O = tf.reduce_sum(tf.multiply(x=tf.expand_dims(softmax_QK, axis=4),  # [b,head,wQ,wKV,1]
-                                          y=tf.expand_dims(V, axis=2)),  # [b,head,1,wKV,c]
-                              axis=-2, keepdims=False)  # [b,haed,wQ,c]
-            O_concat = tf.reshape(O, shape=[-1, self.headNum * self.nodeQ, self.outChl])  # [b,head*wQ,c]
-            y = tf.add(x=tf.transpose(a=tf.tensordot(a=O_concat, b=self.wO, axes=[1, 0]), perm=[0, 2, 1]),
-                       y=self.bO)  # [b,nodeO,c]
+            Q = tf.transpose(a=tf.tensordot(a=x, b=self.wQ, axes=[2, 1]), perm=[0, 2, 1, 3])  # [b,head,w,cQKV]
+            K = tf.transpose(a=tf.tensordot(a=x, b=self.wK, axes=[2, 1]), perm=[0, 2, 1, 3])  # [b,head,w,cQKV]
+            V = tf.transpose(a=tf.tensordot(a=x, b=self.wV, axes=[2, 1]), perm=[0, 2, 1, 3])  # [b,head,w,cQKV]
+            QK = tf.reduce_sum(
+                tf.multiply(
+                    x=tf.expand_dims(Q, axis=3),  # [b,head,w,1,cQKV]
+                    y=tf.expand_dims(K, axis=2)),  # [b,head,1,w,cQKV]
+                axis=-1, keepdims=False)  # [b,head,w,w]
+            QK_div_dk = tf.divide(x=QK, y=self.root_dim_qkv)  # [b,head,w,w]
+            softmax_QK = tf.nn.softmax(logits=QK_div_dk, axis=-1)  # [b,head,w,w]
+            O = tf.reduce_sum(
+                tf.multiply(
+                    x=tf.expand_dims(softmax_QK, axis=4),  # [b,head,w,w,1]
+                    y=tf.expand_dims(V, axis=2)),  # [b,head,1,w,cQKV]
+                axis=-2, keepdims=False)  # [b,haed,w,cQKV]
+            O_concat = tf.reshape(
+                tf.transpose(O, perm=[0, 2, 1, 3]),
+                shape=[-1, self.inWidth, self.headNum * self.qkvChl])  # [b,w,head*cQKV]
+            y = tf.add(x=tf.tensordot(a=O_concat, b=self.wO, axes=[2, 0]), y=self.bO)  # [b,w,c]
         return y  # [b,w,c]
+
+
+class ConvLayer(ModelLayer):
+    # shape of x = [batch, width, inChannel] = "NWC"
+    # shape of w = [filterWidth, inChannel, outChannel]
+    # shape of b = [1, 1, outChannel]
+    # shape of y = [batch, width, outChannel]
+    def __init__(self, filterWidth, filterNum, inWidth, inChl, stride=1,
+                 initValues=None, name="conv"):
+        super(ConvLayer, self).__init__(name=name)
+        n_w = "w"
+        n_b = "b"
+        initVal = initValues[name] if (initValues is not None) and (name in initValues.keys()) else None
+        init_w = initVal[n_w] if (initVal is not None) and (n_w in initVal.keys()) else None
+        init_b = initVal[n_b] if (initVal is not None) and (n_b in initVal.keys()) else None
+        self.outWidth = inWidth // stride
+        self.outChl = filterNum
+        self.filterWidth = filterWidth
+        self.filterNum = filterNum
+        self.stride = stride
+
+        with tf.name_scope(self.name):
+            self.w = weight_variable([filterWidth, inChl, filterNum], initMatrix=init_w, name=n_w)
+            self.b = bias_variable([1, 1, filterNum], initMatrix=init_b, name=n_b)
+            self._register_objects({n_w: self.w,
+                                    n_b: self.b})
+
+        self.result_import(self.w.name, init_w is not None)
+        self.result_import(self.b.name, init_b is not None)
+
+    @tf.function(input_signature=(tf.TensorSpec(shape=[None, None, None], dtype=tf.float32),))
+    def call(self, x):
+        with tf.name_scope(self.name + "/proc"):
+            y = tf.nn.conv1d(input=x, filters=self.w, stride=self.stride, padding="SAME", data_format="NWC")
+            y = tf.add(x=y, y=self.b)
+        return y
 
 
 class FcLayer(ModelLayer):
@@ -334,7 +374,7 @@ class DropoutLayer(ModelLayer):
         return y
 
 
-class LayerNormLayer(ModelLayer):
+class LayerNormalizationLayer(ModelLayer):
     # shape of x,y = [-1, (shape)]
     def __init__(self, shape, axis, initValues=None, name="layerNorm"):
         """
@@ -347,7 +387,7 @@ class LayerNormLayer(ModelLayer):
                            このブロックのinitValuesは、variableのnameをkeyにしてvariable初期化用の行列（ndarray）を持つ
         :param name: str, used in naming the outputing model data folder, must be unique in same hierarchy
         """
-        super(LayerNormLayer, self).__init__(name=name)
+        super(LayerNormalizationLayer, self).__init__(name=name)
         n_beta = "beta"
         n_gamma = "gamma"
         initVal = initValues[name] if (initValues is not None) and (name in initValues.keys()) else None
