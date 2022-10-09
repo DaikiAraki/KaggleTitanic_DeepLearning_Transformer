@@ -15,7 +15,7 @@
 # limitations under the License.
 # ==============================================================================
 
-# tensorflow v2.4.1
+# tensorflow v2.9.1
 
 import tensorflow as tf
 from tensorflow.python.framework import ops
@@ -49,11 +49,13 @@ class AdaBelief(Optimzier):
         self._set_hyper("beta_2", rmsprop)
         self.epsilon = epsilon or backend_config.epsilon()
 
+
     def _create_slots(self, var_list):
         for var in var_list:
             self.add_slot(var, 'm')
         for var in var_list:
             self.add_slot(var, 's')
+
 
     def _prepare_local(self, var_device, var_dtype, apply_state):
         super(AdaBelief, self)._prepare_local(var_device, var_dtype, apply_state)
@@ -74,6 +76,7 @@ class AdaBelief(Optimzier):
                  beta_2_power=beta_2_power,
                  one_minus_beta_2_t=1 - beta_2_t,))
 
+
     def _resource_apply_dense(self, grad, var, apply_state=None):
         var_device, var_dtype = var.device, var.dtype.base_dtype
         coefficients = ((apply_state or {}).get((var_device, var_dtype))
@@ -92,6 +95,7 @@ class AdaBelief(Optimzier):
                                        epsilon=tf.convert_to_tensor(coefficients['epsilon'], dtype=tf.float32),
                                        grad=grad,
                                        use_locking=tf.convert_to_tensor(self._use_locking, dtype=tf.bool))
+
 
     def _resource_apply_sparse(self, grad, var, indices, apply_state=None):
         var_device, var_dtype = var.device, var.dtype.base_dtype
@@ -120,6 +124,7 @@ class AdaBelief(Optimzier):
         updates = [op_var, op_m, op_s]
         return control_flow_ops.group(*updates)
 
+
     def get_config(self):
         config = super(AdaBelief, self).get_config()
         config.update({
@@ -130,6 +135,7 @@ class AdaBelief(Optimzier):
             'epsilon': self.epsilon,
         })
         return config
+
 
 @tf.function(experimental_relax_shapes=True)
 def gen_ops_apply_AdaBelief(var, m, s, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad, use_locking):
@@ -146,25 +152,25 @@ def gen_ops_apply_AdaBelief(var, m, s, beta1_power, beta2_power, lr, beta1, beta
                                   use_locking=use_locking)
     return op_var
 
+
 # Replicated from :
-#     https://github.com/tensorflow/tensorflow/blob/v2.4.0/tensorflow/python/keras/optimizer_v2/optimizer_v2.py
-# for calling in AdaBelief.add_slots()
+#     https://github.com/keras-team/keras/blob/v2.9.0/keras/optimizers/optimizer_v2/optimizer_v2.py
+# for calling in Optimzier.add_slots()
 def _var_key(var):
     """Key for representing a primary variable, for looking up slots.
-
     In graph mode the name is derived from the var shared name.
     In eager mode the name is derived from the var unique id.
     If distribution strategy exists, get the primary variable first.
     Args:
-        var: the variable.
+    var: the variable.
     Returns:
-        the unique name of the variable.
+    the unique name of the variable.
     """
     # pylint: disable=protected-access
     # Get the distributed variable if it exists.
     if hasattr(var, "_distributed_container"):
         var = var._distributed_container()
-    if var._in_graph_mode:
+    if getattr(var, "_in_graph_mode", False):
         return var._shared_name
     return var._unique_id
 

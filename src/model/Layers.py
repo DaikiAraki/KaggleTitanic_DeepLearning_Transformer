@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-# tensorflow v2.4.1
+# tensorflow v2.9.1
 
 from src.model.ModelCore import ModelLayer
 from src.function.model_functions import *
