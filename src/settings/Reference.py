@@ -28,29 +28,23 @@ class Reference:
     output_node = 2
 
     """ optimizer """
-    opt_lr = 1.e-4
+    opt_lr = 1.e-3
     opt_momentum = 0.900
     opt_rmsprop = 0.999
     opt_epsilon = 1.e-8
 
     """ model structure """
-    inputAdaptBlock_output_node = 128
-    inputAdaptBlock_norm = True
-    inputAdaptBlock_dropout = False
-    inputAdaptBlock_dropout_rate = 0.00
-
     transformerBlocks_num = 2
     transformerBlocks_outChl = [2, 4]
-    transformerBlocks_nodeQKV = [16, 16]
+    transformerBlocks_qkvChl = [2, 4]
     transformerBlocks_head_num = [4, 4]
-    transformerBlocks_width_reduction_ratio = [2, 2]
     transformerBlocks_inner_expansion_ratio = [4, 4]
-    transformerBlocks_use_res_prj = [False, False]
-    transformerBlocks_use_first_norm = [True, True]
-    transformerBlocks_use_second_norm = [True, True]
+    transformerBlocks_downsampling = [True, True]
+    transformerBlocks_use_first_normalize = [True, True]
+    transformerBlocks_use_second_normalize = [True, True]
 
     flattenBlock_outNode = 32
-    flattenBlock_norm = True
+    flattenBlock_normalize = True
     flattenBlock_dropout = True
     flattenBlock_dropout_rate = 0.20
 
