@@ -19,7 +19,7 @@ from src.model.ModelCore import ModelBlock
 from src.model.Layers import *
 
 """
-複数のLayerを含むクラス
+複数種類のLayerで構成される
 TransformerやConvなどを実装する際に必要なDropoutやNormalizaionのLayerを統合したユニット
 """
 
